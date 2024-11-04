@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Generator
 from unittest.mock import patch
 from uuid import uuid4
-from fastapi import status
+from fastapi import status, HTTPException
 import alembic.command
 import alembic.config
 import pytest
@@ -12,6 +12,7 @@ from sqlalchemy import create_engine
 from app.db import get_database_session
 from app.main import app
 from app.models import Organisation
+from app.api.utils import parse_bounding_box
 
 _ALEMBIC_INI_PATH = Path(__file__).parent.parent / "alembic.ini"
 
@@ -166,3 +167,22 @@ def test_location_filtering_by_bounding_box(test_client: TestClient) -> None:
     assert len(filtered_locations) == 2
     assert any(location["location_name"] == "Salzburg" for location in filtered_locations)
     assert any(location["location_name"] == "Vienna" for location in filtered_locations)
+
+def test_parse_bounding_box_valid():
+    bounding_box = "46.5,12.0,49.0,17.0"
+    result = parse_bounding_box(bounding_box)
+    assert result == (46.5, 12.0, 49.0, 17.0)
+
+def test_parse_bounding_box_empty():
+    bounding_box = ""
+    result = parse_bounding_box(bounding_box)
+    assert result is None
+
+
+def test_parse_bounding_box_invalid_values():
+    bounding_box = "46.5,12.0,foo,17.0"  # Non-numeric value
+    with pytest.raises(HTTPException) as exc_info:
+        parse_bounding_box(bounding_box)
+    assert exc_info.value.status_code == 400
+    assert "bounding_box values must be valid numbers." in exc_info.value.detail
+
