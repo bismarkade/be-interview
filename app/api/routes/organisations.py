@@ -7,7 +7,8 @@ from app.api.utils import fetch_organisation, parse_bounding_box
 
 router = APIRouter()
 
-
+# NB--> Endpoints could be improved by not adding the create verb
+# could simply be / and the HTTP verbs will be used to determine the function.
 @router.post("/create", response_model=Organisation)
 def create_organisation(
     create_organisation: CreateOrganisation, 
