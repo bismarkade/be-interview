@@ -3,7 +3,7 @@ from sqlmodel import select, Session
 
 from app.db import get_db
 from app.models import Location, CreateLocation, Organisation, CreateOrganisation
-from app.api.utils import fetch_organisation
+from app.api.utils import fetch_organisation, parse_bounding_box
 
 router = APIRouter()
 
@@ -64,17 +64,29 @@ def create_location(
     return location
 
 
+
 @router.get("/{organisation_id}/locations", response_model=list[Location])
 def get_organisation_locations(
     organisation_id: int, 
-    session: Session = Depends(get_db)
+    session: Session = Depends(get_db), 
+    bounding_box: str = None  
     ) -> list[Location]:
-
     """
     Get locations for a specific organisation ID, optionally filtered by a bounding box.
 
+    - **organisation_id**: ID of the organisation.
+    - **bounding_box**: Optional bounding box filter (e.g., sw_lat,sw_lon,ne_lat,ne_lon).
     """
+    fetch_organisation(organisation_id, session)
+    query = select(Location).where(Location.organisation_id == organisation_id)
 
-    organization_location_query = select(Location).where(Location.organisation_id == organisation_id)
+    bbox_coordinates = parse_bounding_box(bounding_box)
+    if bbox_coordinates:
+        sw_lat, sw_lon, ne_lat, ne_lon = bbox_coordinates
+        query = query.where(
+            (Location.latitude >= sw_lat) & (Location.latitude <= ne_lat) &
+            (Location.longitude >= sw_lon) & (Location.longitude <= ne_lon)
+        )
+    
 
-    return session.exec(organization_location_query).all()
+    return session.exec(query).all()
