@@ -64,11 +64,17 @@ def create_location(
     return location
 
 
-@router.get("/{organisation_id}/locations")
-def get_organisation_locations(organisation_id: int, session: Session = Depends(get_db)):
-    location_ids = session.exec(select(Location.id).where(Location.organisation_id==organisation_id)).all()
-    result = []
-    for location_id in location_ids:
-        location = session.exec(select(Location).where(Location.id == location_id)).one()
-        result.append({"location_name": location.location_name, "location_longitude": location.longitude, "location_latitude": location.latitude })
-    return result
+@router.get("/{organisation_id}/locations", response_model=list[Location])
+def get_organisation_locations(
+    organisation_id: int, 
+    session: Session = Depends(get_db)
+    ) -> list[Location]:
+
+    """
+    Get locations for a specific organisation ID, optionally filtered by a bounding box.
+
+    """
+
+    organization_location_query = select(Location).where(Location.organisation_id == organisation_id)
+
+    return session.exec(organization_location_query).all()
