@@ -1,6 +1,9 @@
 # Test Database
 test.db
 
+# Ignore virtual environment
+.refinqvenv/
+
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/
