@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import select, Session
+from shapely.geometry import Point, Polygon
+from typing import Optional
 from app.db import get_db
-from app.models import CreateLocation, Location
-from app.api.utils import fetch_organisation, parse_bounding_box
+from app.models import CreateLocation, Location,BoundingBox
+from app.api.utils import fetch_organisation, parse_bounding_box, parse_bbox
 
 router = APIRouter()
 
@@ -32,12 +34,11 @@ def create_location(
     return location
 
 
-
 @router.get("/{organisation_id}/locations", response_model=list[Location])
 def get_organisation_locations(
     organisation_id: int, 
     session: Session = Depends(get_db), 
-    bounding_box: str = None  
+    bounding_box: Optional[BoundingBox] = Depends(parse_bbox) 
     ) -> list[Location]:
     """
     Get locations for a specific organisation ID, optionally filtered by a bounding box.
@@ -47,14 +48,24 @@ def get_organisation_locations(
     """
     fetch_organisation(organisation_id, session)
     query = select(Location).where(Location.organisation_id == organisation_id)
-
-    bbox_coordinates = parse_bounding_box(bounding_box)
-    if bbox_coordinates:
-        sw_lat, sw_lon, ne_lat, ne_lon = bbox_coordinates
-        query = query.where(
-            (Location.latitude >= sw_lat) & (Location.latitude <= ne_lat) &
-            (Location.longitude >= sw_lon) & (Location.longitude <= ne_lon)
-        )
     
+    if bounding_box:
+        bbox_polygon = Polygon([
+            (bounding_box.sw_lon, bounding_box.sw_lat),  
+            (bounding_box.ne_lon, bounding_box.sw_lat),  
+            (bounding_box.ne_lon, bounding_box.ne_lat),  
+            (bounding_box.sw_lon, bounding_box.ne_lat),  
+        ])
+
+        locations = session.exec(query).all()
+
+        #  Can use list comprehension as well but wants it to be readable
+        locations_in_bbox = []
+        for location in locations:
+            point = Point(location.longitude, location.latitude)
+
+            if point.within(bbox_polygon):
+                locations_in_bbox.append(location)
+        return locations_in_bbox
 
     return session.exec(query).all()
